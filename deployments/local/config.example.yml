@@ -1,0 +1,79 @@
+# Micro-Investing Engine Configuration Example
+
+# Investment Strategies
+# You can run multiple strategies simultaneously. Each calculates independently,
+# then all amounts are combined for a single trade execution.
+
+strategies:
+  # CREDIT CARD REWARDS STRATEGY (Default - Invest your credit card rewards!)
+  # Requires: The Card Caddie API key + transaction CSV
+  # ENABLED BY DEFAULT
+  - name: "rewards"
+    type: credit_card_rewards
+    enabled: true                 # Set to false to disable
+    csv_file: data/transactions/transactions.csv
+    min_daily_investment: 1.00    # Don't invest if total is below this
+    max_daily_investment: 100.00  # Cap daily investment at this amount
+    allocation:
+      VOO: 0.60                   # 60% to Vanguard S&P 500 ETF
+      QQQ: 0.40                   # 40% to Invesco QQQ (Nasdaq)
+
+  # ROUND UP STRATEGY (Spare change investing - requires transaction CSV)
+  # DISABLED BY DEFAULT
+  - name: "spare_change"
+    type: round_up
+    enabled: false 
+    csv_file: data/transactions/transactions.csv
+    min_daily_investment: 1.00
+    max_daily_investment: 50.00
+    allocation:
+      VOO: 1.00
+
+  # SCHEDULED STRATEGY (Simple recurring investments - no transaction data needed)
+  # DISABLED BY DEFAULT
+  - name: "daily_investment"
+    type: scheduled
+    enabled: false
+    amount: 5.00                  # Invest $5 per interval
+    interval: daily               # Options: daily, weekly, biweekly, monthly
+    allocation:
+      VOO: 0.60
+      QQQ: 0.40
+
+# Transaction Data Source (for round_up and credit_card_rewards strategies)
+transactions:
+  csv_file: data/transactions/transactions.csv
+
+# The Card Caddie API (only needed for credit_card_rewards strategy)
+api:
+  base_url: https://www.thecardcaddie.com
+  key: ${THECARDCADDIE_API_KEY}  # Set in .env file
+
+# Alpaca Brokerage Configuration
+# PAPER TRADING BY DEFAULT, SET TO FALSE FOR LIVE TRADING WITH REAL MONEY
+alpaca:
+  api_key: ${ALPACA_API_KEY}
+  secret_key: ${ALPACA_SECRET_KEY}
+  paper: true
+
+# Execution Settings
+execution:
+  ledger_file: data/ledger/ledger.csv
+  log_level: INFO
+
+# Email Notifications (optional - get alerts for insufficient funds, trades executed, etc.)
+notifications:
+  enabled: false           # Set to true to enable email notifications
+  email_to: ${EMAIL_TO}    # Your email address
+  smtp_server: smtp.gmail.com
+  smtp_port: 587
+  smtp_user: ${SMTP_USER}        # Set in .env (your Gmail address)
+  smtp_password: ${SMTP_PASSWORD} # Set in .env (Gmail app password)
+  
+# Gmail App Password Setup:
+# 1. Enable 2-factor authentication on your Google account
+# 2. Generate app password: https://myaccount.google.com/apppasswords
+# 3. Add to .env file:
+#    EMAIL_TO=your@email.com
+#    SMTP_USER=your@gmail.com
+#    SMTP_PASSWORD=your-16-digit-app-password

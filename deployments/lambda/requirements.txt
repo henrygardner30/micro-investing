@@ -1,0 +1,8 @@
+# AWS Lambda Requirements for Micro-Investing Engine
+# Install with:
+#   $ pip install -r requirements.txt -t package/
+#       or
+#   $ ./build.sh
+
+requests==2.32.3
+boto3==1.34.69

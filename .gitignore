@@ -1,0 +1,36 @@
+# environment variables (contains sensitive API keys)
+.env
+.env.*
+# allow template to be committed
+!.env.template
+
+# build artifacts
+deployments/lambda/package/
+deployments/lambda/lambda-deployment.zip
+
+# user data (personal financial information)
+deployments/*/data/ledger/*.csv
+deployments/*/data/state/
+deployments/*/data/transactions/*.csv
+deployments/local/config.yml
+*.log
+# allow the template to be committed
+!deployments/*/data/transactions/*_template.csv
+# allow the example config to be committed
+!deployments/local/config.example.yml
+
+# python
+__pycache__/
+*.py[cod]
+*.so
+venv/
+*.egg-info/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store

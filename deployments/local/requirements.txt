@@ -1,0 +1,6 @@
+# Micro-Investing Engine Dependencies
+# Works with Python 3.8 - 3.13+
+
+python-dotenv==1.0.1
+PyYAML>=6.0.1
+requests==2.32.3
