@@ -125,6 +125,9 @@ def main():
     all_investable_amount = 0.0
     combined_allocation_amounts = defaultdict(float)
     executed_strategies_names = []
+    # (instance, config) pairs to commit once trades have actually executed,
+    # so stateful strategies (e.g. scheduled) only advance on a real run.
+    pending_commits = []
     
     # loop through each strategy in the config
     for strategy_conf in strategies_config:
@@ -210,6 +213,7 @@ def main():
             for symbol, amount in current_allocation.items():
                 combined_allocation_amounts[symbol] += amount
             executed_strategies_names.append(strategy_name)
+            pending_commits.append((strategy_instance, strategy_conf))
             print(f"[{strategy_name}] Investable amount: ${current_investable:.4f}")
             print(f"[{strategy_name}] Allocation: {', '.join([f'{s}: ${a:.2f}' for s, a in current_allocation.items()])}")
         else:
@@ -283,7 +287,11 @@ def main():
         for symbol, amount in combined_allocation_amounts.items():
             trader.place_fractional_order(symbol, amount, dry_run=False)
         print()
-        
+
+        # record the run for any stateful strategies now that trades executed
+        for strategy_instance, strategy_conf in pending_commits:
+            strategy_instance.commit_run(strategy_conf)
+
         # send email notification if enabled (only for real executions)
         notifier = NotificationManager(config)
         if notifier.enabled:

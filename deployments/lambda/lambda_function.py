@@ -99,7 +99,10 @@ def handle_scheduled_run(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # process strategies
         total_investable = 0.0
         combined_allocation = {}
-        
+        # (instance, config) pairs to commit once trades have actually executed,
+        # so stateful strategies (e.g. scheduled) only advance on a real run.
+        pending_commits = []
+
         # initialize state storage for scheduled strategies
         state_storage = get_state_storage()
         
@@ -131,6 +134,7 @@ def handle_scheduled_run(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 allocation = strategy.calculate_allocation(amount, strat_config)
                 for symbol, amt in allocation.items():
                     combined_allocation[symbol] = combined_allocation.get(symbol, 0) + amt
+                pending_commits.append((strategy, strat_config))
         
         if total_investable == 0:
             return {
@@ -167,7 +171,11 @@ def handle_scheduled_run(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             result = alpaca.place_fractional_order(symbol, amount, dry_run=False)
             if result:
                 results.append(result)
-        
+
+        # record the run for any stateful strategies now that trades executed
+        for strategy, strat_config in pending_commits:
+            strategy.commit_run(strat_config)
+
         # log to ledger
         save_to_ledger({
             'timestamp': datetime.now().isoformat(),

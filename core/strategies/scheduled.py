@@ -34,12 +34,14 @@ class ScheduledStrategy(BaseStrategy):
         if state_storage is not None:
             self.storage = state_storage
         else:
-            # Default: file-based storage for local deployment
+            # Default: file-based storage for local deployment.
+            # storage must be set to None BEFORE _ensure_state_file(), which
+            # calls _save_state() and branches on self.storage.
             if state_file is None:
                 state_file = "data/state/scheduled_state.json"
+            self.storage = None  # Use file-based methods
             self.state_file = Path(state_file)
             self._ensure_state_file()
-            self.storage = None  # Use file-based methods
     
     def supports_transactions(self) -> bool:
         """
@@ -182,6 +184,18 @@ class ScheduledStrategy(BaseStrategy):
         
         return True
 
+    def commit_run(self, config: Dict) -> None:
+        """
+        Record that this scheduled strategy executed, advancing the interval gate
+        in _should_invest. Called by the caller only after a successful, real
+        (non-simulated) execution.
+
+        @PARAMS:
+            - config -> strategy configuration containing the strategy 'name'
+        """
+        strategy_name = config.get('name', 'scheduled')
+        self._mark_run(strategy_name)
+
     def calculate_investable_amount(self, config: Dict) -> Tuple[float, List[Dict]]:
         """
         Function to calculate investment amount based on schedule and last run.
@@ -198,10 +212,11 @@ class ScheduledStrategy(BaseStrategy):
         if not self._should_invest(strategy_name, interval):
             print(f"[{strategy_name}] Skipping - {interval} interval not yet elapsed")
             return (0.0, [])
-        
-        # mark that we're running now
-        self._mark_run(strategy_name)
-        
+
+        # NOTE: do NOT mark the run here. The run is recorded only once trades
+        # are actually executed, via commit_run(). Marking at calculation time
+        # would make a simulation or a failed/insufficient-funds execution
+        # wrongly consume the interval.
         details = [{
             'type': 'scheduled',
             'strategy': strategy_name,
