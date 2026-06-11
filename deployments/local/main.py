@@ -101,16 +101,22 @@ def main():
         sys.exit(1)
     
     # get alpaca keys
-    is_paper_trading = config['alpaca'].get('paper', True)
+    alpaca_config = config.get('alpaca', {})
+    is_paper_trading = alpaca_config.get('paper', True)
     if is_paper_trading:
-        alpaca_api_key = os.getenv('ALPACA_API_KEY') or config['alpaca'].get('api_key')
-        alpaca_secret_key = os.getenv('ALPACA_SECRET_KEY') or config['alpaca'].get('secret_key')
+        alpaca_api_key = os.getenv('ALPACA_API_KEY') or alpaca_config.get('api_key')
+        alpaca_secret_key = os.getenv('ALPACA_SECRET_KEY') or alpaca_config.get('secret_key')
+
+        if not alpaca_api_key or not alpaca_secret_key:
+            print("Error: Paper trading requires ALPACA_API_KEY and ALPACA_SECRET_KEY")
+            print("       Set them in your .env file (run: python setup.py)")
+            sys.exit(1)
 
     # alpaca uses live api keys for real trading, different than paper trading keys
     else:
         alpaca_api_key = os.getenv('ALPACA_LIVE_API_KEY')
         alpaca_secret_key = os.getenv('ALPACA_LIVE_SECRET_KEY')
-        
+
         if not alpaca_api_key or not alpaca_secret_key:
             print("Error: Live trading requires ALPACA_LIVE_API_KEY and ALPACA_LIVE_SECRET_KEY")
             sys.exit(1)
@@ -152,7 +158,7 @@ def main():
         # calculate the investable amount based on credit card rewards strategy
         if strategy_type == 'credit_card_rewards':
             cardcaddie_api_key = os.getenv('THECARDCADDIE_API_KEY') or config.get('api', {}).get('key')
-            if not cardcaddie_api_key or cardcaddie_api_key.startswith('${'):
+            if not cardcaddie_api_key:
                 print(f"Error: Credit card rewards strategy '{strategy_name}' requires THECARDCADDIE_API_KEY")
                 continue
             # calculate the reward using thecardcaddie api
