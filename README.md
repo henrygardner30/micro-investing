@@ -54,7 +54,8 @@ This interactive script guides you through setup for either local or Lambda depl
 ```
 micro-investing/
 ├── build.sh                       # Main build script (START HERE!)
-├── core/                          # Shared code, strategies and API clients
+├── core/                          # Shared code: orchestration, strategies, API clients
+│   ├── engine.py                  # Shared orchestrator (build_plan / execute_plan)
 │   ├── strategies/                # Investment strategies (add new ones here)
 │   │   ├── base.py                # Abstract base class
 │   │   ├── scheduled.py           # Example: scheduled investing
@@ -69,6 +70,7 @@ micro-investing/
 │   │   ├── main.py                # Entry point for local execution
 │   │   ├── setup.py               # Interactive setup wizard
 │   │   ├── requirements.txt       # Python dependencies
+│   │   ├── tests/                 # Unit tests (pytest)
 │   │   └── src/utils/             # Local-specific utilities
 │   └── lambda/                    # AWS Lambda deployment
 │       ├── lambda_function.py     # Lambda handler
@@ -82,6 +84,23 @@ micro-investing/
 ├── CONTRIBUTING.md                # Contributing guide
 └── FAQ.md                         # Troubleshooting guide
 ```
+
+### How It Works
+
+All the investing logic lives in the shared engine (`core/engine.py`), so local
+and Lambda behave identically:
+
+1. **`build_plan`** runs every enabled strategy — validating each config,
+   computing its investable amount, applying `min`/`max` daily limits, and
+   combining the per-symbol allocations into a single plan.
+2. **`execute_plan`** checks your Alpaca buying power, places the fractional
+   orders (skipped in `simulate` mode), and records the run for stateful
+   strategies (e.g. scheduled) — only after a real execution succeeds.
+
+The deployment layers (`deployments/local/main.py` and
+`deployments/lambda/lambda_function.py`) are thin adapters: they load
+configuration and credentials, then handle logging, the ledger, and
+notifications around those two engine calls.
 
 ---
 
@@ -189,7 +208,16 @@ class MyStrategy(BaseStrategy):
     def validate_config(self, config):
         # Validate configuration
         return True
+
+    # Optional: persist state only after a real execution succeeds.
+    # Override this if your strategy must not repeat on simulate/failed runs.
+    def commit_run(self, config):
+        pass
 ```
+
+The engine calls `commit_run` only after trades actually execute (never in
+`simulate` mode or on insufficient funds), so stateful strategies advance
+exactly once per real run. Stateless strategies can omit it.
 
 **Use in local deployment:**
 ```yaml
@@ -221,6 +249,7 @@ Set as environment variable or pass via API Gateway.
 - **Lambda Deployment Guide:** [deployments/lambda/README.md](deployments/lambda/README.md)
 
 ### Source Code
+- **Engine (orchestration):** [core/engine.py](core/engine.py)
 - **Strategy Source Code:** [core/strategies/](core/strategies/)
 - **API Clients Source Code:** [core/clients/](core/clients/)
 

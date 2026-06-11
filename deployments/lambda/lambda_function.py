@@ -16,6 +16,7 @@ from typing import Dict, Any
 # imports from core/ (copied during build)
 from strategies import STRATEGY_REGISTRY
 from clients import AlpacaTrader, RewardCalculator
+from engine import build_plan, execute_plan
 
 # lambda-specific utilities
 from utils import save_to_ledger, load_config, get_state_storage
@@ -96,47 +97,20 @@ def handle_scheduled_run(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # initialize alpaca client
         alpaca = AlpacaTrader(alpaca_key, alpaca_secret, paper=is_paper)
         
-        # process strategies
-        total_investable = 0.0
-        combined_allocation = {}
-        # (instance, config) pairs to commit once trades have actually executed,
-        # so stateful strategies (e.g. scheduled) only advance on a real run.
-        pending_commits = []
+        # build the reward calculator if a Card Caddie key is configured
+        # (lets credit_card_rewards strategies run if a csv_file is configured)
+        calculator = None
+        cardcaddie_key = os.getenv('THECARDCADDIE_API_KEY')
+        if cardcaddie_key:
+            calculator = RewardCalculator(cardcaddie_key)
 
-        # initialize state storage for scheduled strategies
+        # run all enabled strategies through the shared engine. Scheduled
+        # strategies use S3-backed state so they persist across invocations.
         state_storage = get_state_storage()
-        
-        # get strategies
         strategies = config.get('strategies', [])
-        for strat_config in strategies:
-            if not strat_config.get('enabled', True):
-                continue
-            
-            strategy_type = strat_config['type']
-            strategy_name = strat_config.get('name', strategy_type)
-            
-            if strategy_type not in STRATEGY_REGISTRY:
-                print(f"Unknown strategy type: {strategy_type}")
-                continue
-            
-            # initialize strategy (with state storage for scheduled)
-            StrategyClass = STRATEGY_REGISTRY[strategy_type]
-            if strategy_type == 'scheduled':
-                strategy = StrategyClass(state_storage=state_storage)
-            else:
-                strategy = StrategyClass()
-            
-            # calculate investable amount
-            amount, _ = strategy.calculate_investable_amount(strat_config)
-            
-            if amount > 0:
-                total_investable += amount
-                allocation = strategy.calculate_allocation(amount, strat_config)
-                for symbol, amt in allocation.items():
-                    combined_allocation[symbol] = combined_allocation.get(symbol, 0) + amt
-                pending_commits.append((strategy, strat_config))
-        
-        if total_investable == 0:
+        plan = build_plan(strategies, calculator=calculator, state_storage=state_storage)
+
+        if plan.total_investable == 0:
             return {
                 'statusCode': 200,
                 'body': json.dumps({
@@ -144,54 +118,43 @@ def handle_scheduled_run(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'amount': 0
                 })
             }
-        
-        # check buying power
-        buying_power = alpaca.get_buying_power()
-        if buying_power < total_investable:
-            error_msg = f"Insufficient funds: need ${total_investable:.2f}, have ${buying_power:.2f}"
+
+        # check funds and execute through the shared engine
+        result = execute_plan(plan, alpaca, simulate=False)
+
+        if result.status == 'insufficient_funds':
+            error_msg = f"Insufficient funds: need ${plan.total_investable:.2f}, have ${result.buying_power:.2f}"
             print(error_msg)
-            
-            # log insufficient funds
+
             save_to_ledger({
                 'timestamp': datetime.now().isoformat(),
-                'amount': total_investable,
-                'allocation': combined_allocation,
+                'amount': plan.total_investable,
+                'allocation': plan.combined_allocation,
                 'status': 'insufficient_funds',
                 'note': error_msg
             })
-            
+
             return {
                 'statusCode': 402,
                 'body': json.dumps({'error': error_msg})
             }
-        
-        # execute trades
-        results = []
-        for symbol, amount in combined_allocation.items():
-            result = alpaca.place_fractional_order(symbol, amount, dry_run=False)
-            if result:
-                results.append(result)
-
-        # record the run for any stateful strategies now that trades executed
-        for strategy, strat_config in pending_commits:
-            strategy.commit_run(strat_config)
 
         # log to ledger
         save_to_ledger({
             'timestamp': datetime.now().isoformat(),
-            'amount': total_investable,
-            'allocation': combined_allocation,
+            'amount': plan.total_investable,
+            'allocation': plan.combined_allocation,
             'status': 'success',
-            'orders': results
+            'orders': result.orders
         })
-        
+
         return {
             'statusCode': 200,
             'body': json.dumps({
                 'message': 'Investment executed successfully',
-                'amount': total_investable,
-                'allocation': combined_allocation,
-                'orders': results
+                'amount': plan.total_investable,
+                'allocation': plan.combined_allocation,
+                'orders': result.orders
             })
         }
         
