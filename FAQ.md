@@ -91,7 +91,7 @@ cd /path/to/micro-investing/deployments/local
 
 # Verify core exists
 ls ../../core/
-# Should show: strategies/ and clients/
+# Should show: strategies/, clients/ and engine.py
 ```
 
 **If core/ is missing:** Clone the full repository again.

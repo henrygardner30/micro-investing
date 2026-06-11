@@ -99,6 +99,16 @@ else
     print_error "Failed to copy clients"
 fi
 
+echo "Copying shared engine from core/..."
+if [ ! -f "$CORE_DIR/engine.py" ]; then
+    print_error "Engine module not found at: $CORE_DIR/engine.py"
+fi
+if cp "$CORE_DIR/engine.py" package/engine.py 2>/dev/null; then
+    print_success "Engine copied"
+else
+    print_error "Failed to copy engine"
+fi
+
 # copy lambda-specific utils
 echo "Copying Lambda-specific utils..."
 if [ ! -d "utils" ]; then
@@ -167,6 +177,7 @@ echo ""
 echo "Package contents:"
 echo "  ✓ Core strategies (from core/strategies/)"
 echo "  ✓ Core clients (from core/clients/)"
+echo "  ✓ Core engine (from core/engine.py)"
 echo "  ✓ Lambda utilities"
 echo "  ✓ Python dependencies (requests, boto3)"
 echo ""

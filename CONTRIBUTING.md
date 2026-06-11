@@ -18,7 +18,7 @@ Thank you for your interest in contributing! This guide will help you get starte
 
 ## Getting Started
 
-This project uses a shared core architecture with deployment-specific adapters. Changes to strategies or API clients automatically apply to both local and Lambda deployments.
+This project uses a shared core architecture with deployment-specific adapters. The shared engine (`core/engine.py`) runs strategies and executes trades via two functions — `build_plan` (validate, compute amounts, apply min/max limits, combine allocations) and `execute_plan` (check funds, place orders, commit stateful runs). The local CLI and Lambda handler are thin adapters that wire up config, credentials, logging, the ledger, and notifications around those calls. Changes to the engine, strategies, or API clients automatically apply to both local and Lambda deployments.
 
 ### Quick Start
 
@@ -45,7 +45,8 @@ This project uses a shared core architecture with deployment-specific adapters. 
 
 ```
 micro-investing/
-├── core/                          # Shared code, strategies and API clients
+├── core/                          # Shared code: orchestration, strategies, API clients
+│   ├── engine.py                  # Shared orchestrator (build_plan / execute_plan)
 │   ├── strategies/                # Investment strategies (add new ones here)
 │   │   ├── base.py                # Abstract base class
 │   │   ├── scheduled.py           # Example: scheduled investing
@@ -59,10 +60,11 @@ micro-investing/
 │   ├── local/                     # Local deployment
 │   │   ├── main.py                # Entry point for local execution
 │   │   ├── setup.py               # Interactive setup wizard
+│   │   ├── tests/                 # Unit tests (pytest)
 │   │   └── src/utils/             # Local-specific utilities
 │   └── lambda/                    # AWS Lambda deployment
 │       ├── lambda_function.py     # Lambda handler
-│       ├── build.sh               # Build script
+│       ├── build.sh               # Build script (bundles core/ incl. engine.py)
 │       └── utils/                 # Lambda-specific utilities
 │
 ├── assets/                        # Images and static assets
@@ -193,7 +195,11 @@ class YourStrategy(BaseStrategy):
 
 ### Auto-Registration
 
-Strategies are automatically registered when they extend `BaseStrategy`. No manual registration needed!
+Strategies are automatically registered when they extend `BaseStrategy`. No manual registration needed! The engine then runs your strategy the same way in both deployments — config-based strategies are driven through `calculate_investable_amount`, and transaction (CSV) strategies through `calculate_investable_from_csv`.
+
+### Persisting State (optional)
+
+If your strategy must not repeat on a simulated or failed run (e.g. recurring/scheduled investing), override `commit_run(self, config)`. The engine calls it **only** after trades have actually executed — never in `simulate` mode or when funds are insufficient — so the run is recorded exactly once. Compute logic (e.g. `calculate_investable_amount`) must not record the run itself. See `ScheduledStrategy` for an example. Stateless strategies can ignore this.
 
 ### Using Your Strategy
 

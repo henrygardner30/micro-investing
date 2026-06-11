@@ -377,7 +377,7 @@ deployments/local/
 **Fix:** The `core/` directory is missing. Ensure you cloned the full repo:
 ```bash
 cd ../..  # Go to repo root
-ls core/  # Should show strategies/ and clients/
+ls core/  # Should show strategies/, clients/ and engine.py
 ```
 
 ### API Key Issues
