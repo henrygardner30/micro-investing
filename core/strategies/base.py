@@ -88,3 +88,20 @@ class BaseStrategy(ABC):
         """
         return (0.0, [])  # Default implementation for non-CSV strategies
 
+    def commit_run(self, config: Dict) -> None:
+        """
+        Optional hook invoked by the caller AFTER trades for this run have been
+        successfully executed with real money. It is never called in simulate
+        mode, nor when execution is aborted (e.g. insufficient funds).
+
+        Stateful strategies that gate themselves on past runs (e.g. scheduled /
+        recurring investing) must override this to persist that the run
+        completed. Calculating the investable amount must NOT itself record the
+        run, otherwise a simulation or a failed execution would wrongly consume
+        the interval. Stateless strategies need not override this.
+
+        @PARAMS:
+            - config -> the strategy's configuration dictionary for this run
+        """
+        return None  # Default: stateless strategies have nothing to commit
+
