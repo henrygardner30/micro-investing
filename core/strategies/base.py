@@ -79,9 +79,9 @@ class BaseStrategy(ABC):
         """
         Optional helper function for strategies that process transactions from a CSV file.
         Returns a tuple of (total_investable_amount, list_of_transaction_details).
-        
+
         Strategies that do not use CSVs do not need to override this.
-        
+
         @PARAMS:
             - csv_path -> Path to CSV file with transaction data
             - calculator -> Optional: An API calculator instance (e.g., RewardCalculator) if needed by the strategy
